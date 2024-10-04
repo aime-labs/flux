@@ -1,0 +1,13 @@
+torch == 2.4.0
+torchvision == 0.19.0
+einops ==  0.8.0
+fire >= 0.6.0
+huggingface-hub == 0.25.0
+safetensors == 0.4.5
+sentencepiece == 0.2.0
+transformers == 4.44.2
+tokenizers == 0.19.1
+protobuf == 5.28.2
+requests == 2.32.3
+
+aime_api_worker_interface @ git+https://github.com//aime-team/aime-api-worker-interface
