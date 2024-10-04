@@ -9,5 +9,8 @@ transformers == 4.44.2
 tokenizers == 0.19.1
 protobuf == 5.28.2
 requests == 2.32.3
+invisible-watermark == 0.2.0
+opencv-python == 4.10.0.84
+pywavelets == 1.7.0
 
 aime_api_worker_interface @ git+https://github.com//aime-team/aime-api-worker-interface
