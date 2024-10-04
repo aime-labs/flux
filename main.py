@@ -4,6 +4,7 @@ import argparse
 import datetime
 import base64
 import io
+import os
 from PIL import Image
 
 import torch
@@ -28,10 +29,22 @@ class Inferencer():
         self.model, self.ae, self.t5, self.clip = None, None, None, None
 
 
-    def load_models(self, name: str,  is_schnell: bool):
+    def load_models(self, ckpt_path: str, name: str,  is_schnell: bool):
+        t5_path = "google/t5-v1_1-xxl"
+        clip_path = "openai/clip-vit-large-patch14"
+        if ckpt_path:
+            ckpt_path = os.path.join(ckpt_path, '')
+            configs[name].ckpt_path = ckpt_path + "flux1-dev.safetensors"
+            configs[name].ae_path = ckpt_path + "ae.safetensors"
+            t5_path_ = ckpt_path + "models--google--t5-v1_1-xxl"
+            if os.path.exists(t5_path_):
+                t5_path = t5_path_
+            clip_path_ = ckpt_path + "models--openai--clip-vit-large-patch14"
+            if os.path.exists(clip_path_):
+                clip_path = clip_path_
         self.is_schnell = is_schnell
-        self.t5 = load_t5(self.device, max_length=256 if is_schnell else 512)
-        self.clip = load_clip(self.device)
+        self.t5 = load_t5(self.device, t5_path, max_length=256 if is_schnell else 512)
+        self.clip = load_clip(self.device, clip_path)
         self.model = load_flow_model(name, device=self.device)
         self.ae = load_ae(name, device=self.device)
 
@@ -130,7 +143,6 @@ class Inferencer():
         img = self.decode_latents(img, opts.height, opts.width)
 
         callback(img)
-        print("Done.")
 
 
 class ProcessOutputCallback():
@@ -173,7 +185,7 @@ def load_flags():
         "--gpu_id", type=int, default=0, required=False, help="ID of the GPU to be used"
                         )
     parser.add_argument(
-        "--ckpt_dir", type=str, default="/data/models/FLUX.1-dev/", help="Destination of model weigths"
+        "--ckpt_dir", type=str, default=None, help="Destination of model weigths"
                         )
     parser.add_argument(
         "--api_auth_key", type=str , default=DEFAULT_WORKER_AUTH_KEY, required=False, 
@@ -213,7 +225,7 @@ def main():
 
     print("Loading models... ")
     inferencer = Inferencer(device)
-    inferencer.load_models("flux-dev", is_schnell=False)
+    inferencer.load_models(args.ckpt_dir, "flux-dev", is_schnell=False)
 
     callback = ProcessOutputCallback(api_worker, inferencer, 'flux-dev')
 
