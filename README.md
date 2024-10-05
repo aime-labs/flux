@@ -25,7 +25,11 @@ Use [AIME MLC](https://github.com/aime-team/aime-ml-containers) to install in a 
 mlc-create flux1dev Pytorch 2.4.0
 mlc-open flux1dev
 
+git clone https://github.com/black-forest-labs/flux
+cd flux
+
 sudo apt install libgl1-mesa-glx libglib2.0-0
+
 pip install -r requirements.txt
 pip install -e .
 ```
