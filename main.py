@@ -2,6 +2,7 @@ from pathlib import Path
 import random
 import argparse
 import datetime
+import time
 import base64
 import io
 import os
@@ -151,14 +152,20 @@ class ProcessOutputCallback():
         self.inferencer = inferencer
         self.model_name = model_name
         self.job_data = None
+        self.arrival_time = None
+        self.finished_time = None
+        self.preprocessing_duration = None
 
     def process_output(self, image, progress_step=100, finished=True, error=None, message=None):
-        
         if error:
             print('error')
             self.api_worker.send_progress(100, None)
             image = Image.fromarray((np.random.rand(1024,1024,3) * 255).astype(np.uint8))
-            return self.api_worker.send_job_results({'images': [image], 'error': error, 'model_name': self.model_name})
+            return self.api_worker.send_job_results({
+                'images': [image], 
+                'error': error, 
+                'model_name': self.model_name
+            })
         else:
             if not finished:
                 step_factor = self.job_data.get('image2image_strength') if self.job_data.get('image') else 1
@@ -171,10 +178,17 @@ class ProcessOutputCallback():
                         progress_data['progress_images'] = [image]                       
                     return self.api_worker.send_progress(progress_info, progress_data)
             else:
+                self.finished_time = time.time()
+
                 image_list = [image]
                 self.api_worker.send_progress(100, None)
-                return self.api_worker.send_job_results({'images': image_list, 'model_name': self.model_name})
-
+                return self.api_worker.send_job_results({
+                    'images': image_list, 
+                    'model_name': self.model_name,
+                    "finished_time": self.finished_time,
+                    "arrival_time": self.arrival_time,
+                    "preprocessing_duration": self.preprocessing_duration,
+                })
 
 def load_flags():
     parser = argparse.ArgumentParser()
@@ -221,7 +235,10 @@ def main():
     args = load_flags()
     device = "cuda:" + str(args.gpu_id)
     torch.set_default_device(device)
-    api_worker = APIWorkerInterface(args.api_server, WORKER_JOB_TYPE, args.api_auth_key, args.gpu_id, world_size=1, rank=0, gpu_name=torch.cuda.get_device_name(), worker_version=VERSION)
+    api_worker = APIWorkerInterface(
+        args.api_server, WORKER_JOB_TYPE, args.api_auth_key, args.gpu_id,
+        world_size=1, rank=0, gpu_name=torch.cuda.get_device_name(), worker_version=VERSION
+    )
 
     print("Loading models... ")
     inferencer = Inferencer(device)
@@ -233,8 +250,13 @@ def main():
 
     while True:
         try:
+            callback.arrival_time = time.time()
+
             job_data = api_worker.job_request()
             print(f'Processing job {job_data.get("job_id")}...', end='', flush=True)
+            
+            preprocessing_start = time.time()
+            
             job_data = set_seed(job_data)
             init_image = job_data.get('image')
             if init_image:
@@ -243,11 +265,13 @@ def main():
                     job_data.get('width'), 
                     job_data.get('height')
                 )
-            callback.job_data = job_data           
+            callback.job_data = job_data
+
+            callback.preprocessing_duration = time.time() - preprocessing_start
+
             image = inferencer.gen_image(
                 job_data.get('prompt'),
                 callback.process_output,
-#                job_data.get('num_samples', 1),
                 job_data.get('width'), 
                 job_data.get('height'), 
                 job_data.get('steps'), 
@@ -257,14 +281,16 @@ def main():
                 init_image,
                 job_data.get('image2image_strength')
             )
+
             print('Done')
+
         except ValueError as exc:
             print('Error')
-            callback.process_output(None , None, True, f'{exc}\nChange parameters and try again')
+            callback.process_output(None, None, True, f'{exc}\nChange parameters and try again')
             continue
         except torch.cuda.OutOfMemoryError as exc:
             print('Error - CUDA OOM')
-            callback.process_output(None, None, True, f'{exc}\nReduce number image size and try again')
+            callback.process_output(None, None, True, f'{exc}\nReduce image size and try again')
             continue
         except OSError as exc:
             print('Error')
