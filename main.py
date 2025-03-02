@@ -184,6 +184,7 @@ class ProcessOutputCallback():
                 self.api_worker.send_progress(100, None)
                 return self.api_worker.send_job_results({
                     'images': image_list, 
+                    'seed': self.job_data.get('seed'),
                     'model_name': self.model_name,
                     "finished_time": self.finished_time,
                     "arrival_time": self.arrival_time,
@@ -208,11 +209,8 @@ def load_flags():
     return parser.parse_args()
 
 
-def convert_base64_string_to_image(base64_string, width, height):
-    if base64_string:
-        base64_data = base64_string.split(',')[1]
-        image_data = base64.b64decode(base64_data)
-
+def convert_binary_to_image(image_data, width, height):
+    if image_data:
         with io.BytesIO(image_data) as buffer:
             image = Image.open(buffer)
             return image.resize((width, height), Image.LANCZOS)
@@ -258,9 +256,9 @@ def main():
             preprocessing_start = time.time()
             
             job_data = set_seed(job_data)
-            init_image = job_data.get('image')
+            init_image = api_worker.get_binary(job_data, 'image')
             if init_image:
-                init_image = convert_base64_string_to_image(
+                init_image = convert_binary_to_image(
                     init_image,
                     job_data.get('width'), 
                     job_data.get('height')
