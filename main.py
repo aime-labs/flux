@@ -189,6 +189,10 @@ class ProcessOutputCallback():
                     "finished_time": self.finished_time,
                     "arrival_time": self.arrival_time,
                     "preprocessing_duration": self.preprocessing_duration,
+                    "metrics": {
+                        "out_num_images": len(image_list),
+                        "out_resolution": (self.job_data.get("width"), self.job_data.get("height"))
+                    }
                 })
 
 def load_flags():
